@@ -1,20 +1,26 @@
 import { Subscription } from './types';
 
 export const INITIAL_SUBSCRIPTIONS: Subscription[] = [
-  {
-    id: '1',
-    url: 'https://twitter.com/SpaceX',
-    name: 'SpaceX (X)',
-    platform: 'twitter',
-    addedAt: Date.now(),
-  },
-  {
-    id: '2',
-    url: 'https://www.youtube.com/@Google',
-    name: 'Google (YouTube)',
-    platform: 'youtube',
-    addedAt: Date.now(),
-  }
+  { id: '1', url: 'https://twitter.com/SpaceX', name: 'SpaceX (X)', platform: 'twitter', addedAt: Date.now() },
+  { id: '2', url: 'https://www.youtube.com/@Google', name: 'Google (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '3', url: 'https://www.youtube.com/@NavalR', name: 'NavalR (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '4', url: 'https://twitter.com/dotey', name: 'dotey (X)', platform: 'twitter', addedAt: Date.now() },
+  { id: '5', url: 'https://www.youtube.com/@rileybrownai', name: 'rileybrownai (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '6', url: 'https://www.youtube.com/@Zendicay', name: 'Zendicay (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '7', url: 'https://www.youtube.com/@itsbyrobin', name: 'itsbyrobin (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '8', url: 'https://www.youtube.com/@Developete', name: 'Developete (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '9', url: 'https://www.youtube.com/@WebDevCody', name: 'WebDevCody (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '10', url: 'https://www.youtube.com/@NetworkChuck', name: 'NetworkChuck (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '11', url: 'https://www.youtube.com/@indydevdan', name: 'indydevdan (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '12', url: 'https://www.youtube.com/@henrikmdev', name: 'henrikmdev (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '13', url: 'https://www.youtube.com/@OpenAI', name: 'OpenAI (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '14', url: 'https://www.youtube.com/@TinaHuang1', name: 'TinaHuang1 (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '15', url: 'https://www.youtube.com/@tech-shrimp', name: 'tech-shrimp (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '16', url: 'https://www.youtube.com/@eoglobal', name: 'eoglobal (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '17', url: 'https://www.youtube.com/@anthropic-ai', name: 'anthropic-ai (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '18', url: 'https://www.youtube.com/@hackbearterry', name: 'hackbearterry (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '19', url: 'https://www.youtube.com/@jackneel', name: 'jackneel (YouTube)', platform: 'youtube', addedAt: Date.now() },
+  { id: '20', url: 'https://www.youtube.com/@TEDx', name: 'TEDx (YouTube)', platform: 'youtube', addedAt: Date.now() },
 ];
 
 export const PLATFORM_ICONS: Record<string, string> = {
