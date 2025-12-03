@@ -15,10 +15,12 @@ export const fetchFeedUpdates = async (subscriptions: Subscription[]): Promise<F
 
   const results: FeedItem[] = [];
   
-  console.log(`📡 Fetching RSS feeds for ${subscriptions.length} subscriptions...`);
+  // 置顶的优先处理
+  const sortedSubs = [...subscriptions].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  console.log(`📡 Fetching RSS feeds for ${sortedSubs.length} subscriptions...`);
   
   // 并行获取所有订阅
-  const promises = subscriptions.map(async (sub) => {
+  const promises = sortedSubs.map(async (sub) => {
     try {
       // YouTube RSS
       if (sub.platform === 'youtube') {

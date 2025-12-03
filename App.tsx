@@ -98,6 +98,12 @@ const App: React.FC = () => {
     setFeedItems(prev => prev.filter(item => item.subscriptionId !== id));
   };
 
+  const handleTogglePin = (id: string) => {
+    setSubscriptions(prev => prev.map(s => 
+      s.id === id ? { ...s, pinned: !s.pinned } : s
+    ));
+  };
+
   const refreshFeed = useCallback(async () => {
     if (subscriptions.length === 0) {
       setError('请先添加订阅源');
@@ -146,6 +152,7 @@ const App: React.FC = () => {
         subscriptions={subscriptions}
         onAddSubscription={handleAddSubscription}
         onRemoveSubscription={handleRemoveSubscription}
+        onTogglePin={handleTogglePin}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />

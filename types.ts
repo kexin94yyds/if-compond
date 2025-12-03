@@ -4,6 +4,7 @@ export interface Subscription {
   name: string; // User defined or auto-generated alias
   platform: 'youtube' | 'twitter' | 'instagram' | 'other';
   addedAt: number;
+  pinned?: boolean; // 置顶标记
 }
 
 export interface FeedItem {

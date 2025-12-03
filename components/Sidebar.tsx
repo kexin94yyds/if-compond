@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Globe, Link as LinkIcon, X, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Globe, Link as LinkIcon, X, AlertCircle, CheckCircle, Loader2, Pin } from 'lucide-react';
 import { Subscription } from '../types';
 import { detectPlatform, PLATFORM_ICONS, extractCreatorName, validateSubscriptionUrl, normalizeUrl } from '../constants';
 
@@ -42,6 +42,7 @@ interface SidebarProps {
   subscriptions: Subscription[];
   onAddSubscription: (url: string, name: string) => void | Promise<void>;
   onRemoveSubscription: (id: string) => void;
+  onTogglePin: (id: string) => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -50,6 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   subscriptions, 
   onAddSubscription, 
   onRemoveSubscription,
+  onTogglePin,
   isOpen,
   onClose
 }) => {
@@ -243,7 +245,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               已订阅 ({subscriptions.length})
             </h2>
             <div className="space-y-2">
-              {subscriptions.map((sub) => {
+              {/* 置顶的排在前面 */}
+              {[...subscriptions].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)).map((sub) => {
                 // 安全地获取 hostname
                 let hostname = '';
                 try {
@@ -255,7 +258,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                 return (
                   <div
                     key={sub.id}
-                    className="group flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-transparent hover:border-zinc-700"
+                    className={`group flex items-center justify-between p-3 rounded-lg transition-colors border ${
+                      sub.pinned 
+                        ? 'bg-violet-900/20 border-violet-700/50 hover:bg-violet-900/30' 
+                        : 'bg-zinc-800/50 hover:bg-zinc-800 border-transparent hover:border-zinc-700'
+                    }`}
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
                       <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
@@ -281,13 +288,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => onRemoveSubscription(sub.id)}
-                      className="opacity-0 group-hover:opacity-100 p-2 text-zinc-500 hover:text-red-400 transition-all"
-                      title="删除"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onTogglePin(sub.id)}
+                        className={`p-2 transition-all ${
+                          sub.pinned 
+                            ? 'text-violet-400 opacity-100' 
+                            : 'text-zinc-500 hover:text-violet-400 opacity-0 group-hover:opacity-100'
+                        }`}
+                        title={sub.pinned ? '取消置顶' : '置顶'}
+                      >
+                        <Pin size={16} className={sub.pinned ? 'fill-current' : ''} />
+                      </button>
+                      <button
+                        onClick={() => onRemoveSubscription(sub.id)}
+                        className="opacity-0 group-hover:opacity-100 p-2 text-zinc-500 hover:text-red-400 transition-all"
+                        title="删除"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
