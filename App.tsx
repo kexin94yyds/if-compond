@@ -7,7 +7,22 @@ import { INITIAL_SUBSCRIPTIONS, detectPlatform, normalizeUrl } from './constants
 import { fetchFeedUpdates, fetchSingleFeedUpdate } from './services/feedService';
 import { Sparkles, LayoutGrid, AlertTriangle, RefreshCw } from 'lucide-react';
 
+// 版本号 - 更新此值会清除旧数据并使用新的初始订阅
+const APP_VERSION = '2.0.0';
+
 const App: React.FC = () => {
+  // 检查版本，如果版本更新则清除旧数据
+  useEffect(() => {
+    const savedVersion = localStorage.getItem('appVersion');
+    if (savedVersion !== APP_VERSION) {
+      localStorage.removeItem('subscriptions');
+      localStorage.removeItem('feedItems');
+      localStorage.removeItem('lastUpdated');
+      localStorage.setItem('appVersion', APP_VERSION);
+      window.location.reload();
+    }
+  }, []);
+
   // State for subscriptions, initialized from localStorage or defaults
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => {
     const saved = localStorage.getItem('subscriptions');
