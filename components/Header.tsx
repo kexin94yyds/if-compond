@@ -1,0 +1,68 @@
+import React from 'react';
+import { RefreshCw, Menu, Clock } from 'lucide-react';
+
+interface HeaderProps {
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  onOpenSidebar: () => void;
+  lastUpdated: Date | null;
+}
+
+// 格式化相对时间
+const formatRelativeTime = (date: Date): string => {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return '刚刚';
+  if (diffMins < 60) return `${diffMins} 分钟前`;
+  if (diffHours < 24) return `${diffHours} 小时前`;
+  if (diffDays < 7) return `${diffDays} 天前`;
+  return date.toLocaleDateString('zh-CN');
+};
+
+const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, onOpenSidebar, lastUpdated }) => {
+  return (
+    <header className="sticky top-0 z-30 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <button 
+          onClick={onOpenSidebar}
+          className="md:hidden p-2 -ml-2 text-zinc-400 hover:text-white transition-colors"
+        >
+          <Menu size={24} />
+        </button>
+        <div>
+          <h2 className="text-lg font-bold text-zinc-100 hidden md:block">最新动态</h2>
+          <h2 className="text-lg font-bold text-zinc-100 md:hidden">ContentDash</h2>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        {lastUpdated && (
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-500">
+            <Clock size={12} />
+            <span>更新于 {formatRelativeTime(lastUpdated)}</span>
+          </div>
+        )}
+        <button
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className={`
+            flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all
+            ${isRefreshing 
+              ? 'bg-zinc-800 text-zinc-400 cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 active:scale-95'
+            }
+          `}
+        >
+          <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+          <span>{isRefreshing ? '同步中...' : '更新 Feed'}</span>
+        </button>
+      </div>
+    </header>
+  );
+};
+
+export default Header;
