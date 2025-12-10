@@ -1,11 +1,14 @@
-import React from 'react';
-import { RefreshCw, Menu, Clock } from 'lucide-react';
+import React, { useRef } from 'react';
+import { RefreshCw, Menu, Clock, Download, Upload } from 'lucide-react';
+import { Subscription } from '../types';
 
 interface HeaderProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   onOpenSidebar: () => void;
   lastUpdated: Date | null;
+  subscriptions: Subscription[];
+  onImportSubscriptions: (subs: Subscription[]) => void;
 }
 
 // 格式化相对时间
@@ -23,7 +26,44 @@ const formatRelativeTime = (date: Date): string => {
   return date.toLocaleDateString('zh-CN');
 };
 
-const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, onOpenSidebar, lastUpdated }) => {
+const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, onOpenSidebar, lastUpdated, subscriptions, onImportSubscriptions }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 导出订阅列表
+  const handleExport = () => {
+    const data = JSON.stringify(subscriptions, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contentdash-subscriptions-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 导入订阅列表
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target?.result as string) as Subscription[];
+        if (Array.isArray(imported) && imported.every(s => s.id && s.url && s.name)) {
+          onImportSubscriptions(imported);
+        } else {
+          alert('无效的订阅文件格式');
+        }
+      } catch {
+        alert('文件解析失败');
+      }
+    };
+    reader.readAsText(file);
+    // 清空 input 以便重复导入同一文件
+    e.target.value = '';
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
       <div className="flex items-center gap-4">
@@ -46,6 +86,32 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, onOpenSidebar,
             <span>更新于 {formatRelativeTime(lastUpdated)}</span>
           </div>
         )}
+        
+        {/* 导入/导出按钮 */}
+        <div className="flex items-center gap-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="导入订阅"
+            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            <Upload size={18} />
+          </button>
+          <button
+            onClick={handleExport}
+            title="导出订阅"
+            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            <Download size={18} />
+          </button>
+        </div>
+
         <button
           onClick={onRefresh}
           disabled={isRefreshing}

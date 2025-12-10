@@ -104,6 +104,15 @@ const App: React.FC = () => {
     ));
   };
 
+  // 导入订阅列表（合并去重）
+  const handleImportSubscriptions = (imported: Subscription[]) => {
+    setSubscriptions(prev => {
+      const existingUrls = new Set(prev.map(s => normalizeUrl(s.url)));
+      const newSubs = imported.filter(s => !existingUrls.has(normalizeUrl(s.url)));
+      return [...prev, ...newSubs];
+    });
+  };
+
   const refreshFeed = useCallback(async () => {
     if (subscriptions.length === 0) {
       setError('请先添加订阅源');
@@ -163,6 +172,8 @@ const App: React.FC = () => {
           isRefreshing={isRefreshing}
           onOpenSidebar={() => setIsSidebarOpen(true)}
           lastUpdated={lastUpdated}
+          subscriptions={subscriptions}
+          onImportSubscriptions={handleImportSubscriptions}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
