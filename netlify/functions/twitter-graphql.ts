@@ -82,34 +82,38 @@ const handler: Handler = async (event) => {
         body: JSON.stringify({ status: 'ok', user }),
       };
     } else if (action === 'tweets') {
-      // 检查缓存
-      try {
-        const store = getStore('twitter-cache');
-        const cacheKey = `tweets-${username}`;
-        const cached = await store.get(cacheKey, { type: 'json' });
-        if (cached) {
-          console.log(`📦 Cache hit for @${username}`);
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({ status: 'ok', tweets: cached, cached: true }),
-          };
+      // 检查缓存（仅生产环境）
+      if (process.env.NETLIFY) {
+        try {
+          const store = getStore('twitter-cache');
+          const cacheKey = `tweets-${username}`;
+          const cached = await store.get(cacheKey, { type: 'json' });
+          if (cached) {
+            console.log(`📦 Cache hit for @${username}`);
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ status: 'ok', tweets: cached, cached: true }),
+            };
+          }
+        } catch (e) {
+          console.log('Cache read error:', e);
         }
-      } catch (e) {
-        console.log('Cache read error:', e);
       }
       
       // 获取用户推文
       const tweets = await fetchUserTweets(username, ct0, authToken);
       
-      // 存储到缓存
-      try {
-        const store = getStore('twitter-cache');
-        const cacheKey = `tweets-${username}`;
-        await store.setJSON(cacheKey, tweets, { metadata: { ttl: CACHE_TTL_SECONDS } });
-        console.log(`💾 Cached tweets for @${username}`);
-      } catch (e) {
-        console.log('Cache write error:', e);
+      // 存储到缓存（仅生产环境）
+      if (process.env.NETLIFY) {
+        try {
+          const store = getStore('twitter-cache');
+          const cacheKey = `tweets-${username}`;
+          await store.setJSON(cacheKey, tweets, { metadata: { ttl: CACHE_TTL_SECONDS } });
+          console.log(`💾 Cached tweets for @${username}`);
+        } catch (e) {
+          console.log('Cache write error:', e);
+        }
       }
       
       return {
