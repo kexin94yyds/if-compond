@@ -154,25 +154,39 @@ export async function activateLicense(key: string, email: string): Promise<Licen
     return { valid: false, error: '请输入有效的邮箱地址' };
   }
   
-  // 3. 本地开发模式：直接保存（生产环境应调用后端验证）
-  // TODO: 生产环境恢复在线验证
+  // 3. 调用后端验证密钥是否存在于数据库
   try {
-    // 保存到本地
-    saveLicenseLocally(formattedKey, email);
+    const response = await fetch('/.netlify/functions/activate-license', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ licenseKey: formattedKey, email }),
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // 后端验证通过，保存到本地
+      saveLicenseLocally(formattedKey, email);
+      return {
+        valid: true,
+        info: {
+          key: formattedKey,
+          email: email,
+          activatedAt: new Date().toISOString(),
+          type: 'lifetime',
+        },
+      };
+    }
+    
     return {
-      valid: true,
-      info: {
-        key: formattedKey,
-        email: email,
-        activatedAt: new Date().toISOString(),
-        type: 'lifetime',
-      },
+      valid: false,
+      error: result.error || '密钥无效或不存在',
     };
   } catch (error) {
     console.error('License activation error:', error);
     return {
       valid: false,
-      error: '激活失败',
+      error: '网络错误，请检查连接后重试',
     };
   }
 }
