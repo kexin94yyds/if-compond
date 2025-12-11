@@ -11,6 +11,7 @@ import { Sparkles, LayoutGrid, AlertTriangle, RefreshCw } from 'lucide-react';
 
 // 版本号 - 更新此值会清除旧数据并使用新的初始订阅
 const APP_VERSION = '2.1.0';
+const MAX_FREE_USES = 3; // 免费试用次数
 
 const App: React.FC = () => {
   // State for subscriptions, initialized from localStorage
@@ -70,6 +71,13 @@ const App: React.FC = () => {
   // 授权状态
   const [isActivated, setIsActivated] = useState(() => isLicenseActivated());
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
+  
+  // 试用次数追踪
+  const [usageCount, setUsageCount] = useState<number>(() => {
+    const saved = localStorage.getItem('usageCount');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  const remainingUses = Math.max(0, MAX_FREE_USES - usageCount);
 
   // Persist subscriptions
   useEffect(() => {
@@ -142,6 +150,16 @@ const App: React.FC = () => {
   };
 
   const refreshFeed = useCallback(async () => {
+    // 检查试用限制（已激活用户不受限制）
+    if (!isActivated && usageCount >= MAX_FREE_USES) {
+      // 清空内容，强制激活
+      setFeedItems([]);
+      localStorage.removeItem('feedItems');
+      setIsLicenseModalOpen(true);
+      setError('免费试用已结束，请激活以继续使用');
+      return;
+    }
+    
     // 根据平台过滤器确定要更新的订阅
     const subsToRefresh = platformFilter === 'all' 
       ? subscriptions 
@@ -181,6 +199,13 @@ const App: React.FC = () => {
         }
         setLastUpdated(new Date());
         
+        // 未激活用户增加使用次数
+        if (!isActivated) {
+          const newCount = usageCount + 1;
+          setUsageCount(newCount);
+          localStorage.setItem('usageCount', newCount.toString());
+        }
+        
         // 如果部分订阅没有获取到内容，显示警告
         if (validItems.length < subsToRefresh.length) {
           console.warn(`只获取到 ${validItems.length}/${subsToRefresh.length} 个订阅的内容`);
@@ -193,7 +218,7 @@ const App: React.FC = () => {
       setIsRefreshing(false);
       setRefreshProgress('');
     }
-  }, [subscriptions, platformFilter]);
+  }, [subscriptions, platformFilter, isActivated, usageCount]);
 
   // Get subscription name helper
   const getSubName = (subId: string) => {
@@ -233,6 +258,7 @@ const App: React.FC = () => {
           onImportSubscriptions={handleImportSubscriptions}
           onOpenLicense={() => setIsLicenseModalOpen(true)}
           isActivated={isActivated}
+          remainingUses={remainingUses}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
