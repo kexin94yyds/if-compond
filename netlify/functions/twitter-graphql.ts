@@ -4,16 +4,23 @@ import { ProxyAgent, fetch as undiciFetch } from 'undici';
 // Twitter GraphQL API endpoints
 const TWITTER_GRAPHQL_BASE = 'https://api.twitter.com/graphql';
 
-// 代理配置
-const PROXY_URL = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || 'http://127.0.0.1:7897';
-const proxyAgent = new ProxyAgent(PROXY_URL);
+// 检测是否需要代理（仅本地开发环境）
+const PROXY_URL = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+const isLocalDev = process.env.NETLIFY_DEV === 'true' || !process.env.NETLIFY;
 
-// 使用代理的 fetch
-const fetchWithProxy = (url: string, options: any = {}) => {
-  return undiciFetch(url, {
-    ...options,
-    dispatcher: proxyAgent,
-  });
+// 使用代理的 fetch（仅本地开发时）
+const fetchWithProxy = async (url: string, options: any = {}) => {
+  if (isLocalDev && PROXY_URL) {
+    // 本地开发：使用代理
+    const proxyAgent = new ProxyAgent(PROXY_URL || 'http://127.0.0.1:7897');
+    return undiciFetch(url, {
+      ...options,
+      dispatcher: proxyAgent,
+    });
+  } else {
+    // 生产环境：直接访问
+    return fetch(url, options);
+  }
 };
 
 // Bearer token (public, used by Twitter web app)
