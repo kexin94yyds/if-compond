@@ -17,8 +17,8 @@ export interface PaymentConfig {
 export const DEFAULT_PRODUCT: PaymentConfig = {
   productId: 'contentdash_premium',
   productName: 'ContentDash 高级版',
-  price: 0.01,  // 测试价格
-  amount: 1,    // 1分钱
+  price: 99,     // 99元
+  amount: 9900,  // 9900分
 };
 
 export interface CreatePaymentResult {
