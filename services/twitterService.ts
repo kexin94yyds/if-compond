@@ -5,6 +5,23 @@
 
 import { FeedItem } from '../types';
 
+// 缓存配置：缓存 30 分钟，避免 Twitter API 429 限制
+const CACHE_TTL_MS = 30 * 60 * 1000;
+const twitterCache: Map<string, { data: any[]; timestamp: number }> = new Map();
+
+const getCachedTweets = (username: string): any[] | null => {
+  const cached = twitterCache.get(username);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    console.log(`📦 Using cached data for @${username}`);
+    return cached.data;
+  }
+  return null;
+};
+
+const setCachedTweets = (username: string, data: any[]) => {
+  twitterCache.set(username, { data, timestamp: Date.now() });
+};
+
 // 多个 Nitter 实例（作为 Twitter RSS 代理）- 2024/12 更新
 const NITTER_INSTANCES = [
   'https://nitter.net',
@@ -39,6 +56,12 @@ const BRIDGE_SERVER_URL = 'http://localhost:5050';
  * 尝试通过 Twitter GraphQL API 获取推文（最可靠）
  */
 const fetchFromGraphQL = async (username: string): Promise<any[] | null> => {
+  // 先检查缓存
+  const cached = getCachedTweets(username);
+  if (cached) {
+    return cached;
+  }
+  
   try {
     // 使用相对路径，开发环境通过 Vite 代理，生产环境直接访问 Netlify Functions
     const baseUrl = '';
@@ -58,13 +81,16 @@ const fetchFromGraphQL = async (username: string): Promise<any[] | null> => {
     const data = await response.json();
     if (data.status === 'ok' && data.tweets?.tweets?.length > 0) {
       console.log(`✅ Twitter GraphQL success, found ${data.tweets.tweets.length} tweets`);
-      return data.tweets.tweets.map((tweet: any) => ({
+      const tweets = data.tweets.tweets.map((tweet: any) => ({
         title: tweet.text?.substring(0, 150) || '',
         link: tweet.link,
         pubDate: tweet.createdAt,
         description: tweet.text,
         imageUrl: tweet.imageUrl,
       }));
+      // 缓存结果
+      setCachedTweets(username, tweets);
+      return tweets;
     }
     return null;
   } catch (error) {
