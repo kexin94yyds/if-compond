@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
-import { RefreshCw, Menu, Clock, Download, Upload } from 'lucide-react';
+import { RefreshCw, Menu, Clock, Download, Upload, Key, Crown } from 'lucide-react';
 import { Subscription } from '../types';
+import { isLicenseActivated } from '../services/licenseService';
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -9,6 +10,8 @@ interface HeaderProps {
   lastUpdated: Date | null;
   subscriptions: Subscription[];
   onImportSubscriptions: (subs: Subscription[]) => void;
+  onOpenLicense: () => void;
+  isActivated: boolean;
 }
 
 // 格式化相对时间
@@ -26,7 +29,7 @@ const formatRelativeTime = (date: Date): string => {
   return date.toLocaleDateString('zh-CN');
 };
 
-const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, onOpenSidebar, lastUpdated, subscriptions, onImportSubscriptions }) => {
+const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, onOpenSidebar, lastUpdated, subscriptions, onImportSubscriptions, onOpenLicense, isActivated }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 导出订阅列表
@@ -87,6 +90,20 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isRefreshing, onOpenSidebar,
           </div>
         )}
         
+        {/* 授权按钮 */}
+        <button
+          onClick={onOpenLicense}
+          title={isActivated ? '已激活' : '激活授权'}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+            isActivated
+              ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/30'
+              : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+          }`}
+        >
+          {isActivated ? <Crown size={16} /> : <Key size={16} />}
+          <span className="hidden sm:inline">{isActivated ? 'Pro' : '激活'}</span>
+        </button>
+
         {/* 导入/导出按钮 */}
         <div className="flex items-center gap-1">
           <input

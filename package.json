@@ -11,12 +11,14 @@
   "dependencies": {
     "@google/genai": "^1.30.0",
     "@netlify/blobs": "^10.4.3",
+    "@supabase/supabase-js": "^2.87.1",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "undici": "^7.16.0"
   },
   "devDependencies": {
+    "@netlify/functions": "^5.1.1",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",

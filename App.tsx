@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import FeedCard from './components/FeedCard';
+import LicenseModal from './components/LicenseModal';
 import { Subscription, FeedItem } from './types';
 import { INITIAL_SUBSCRIPTIONS, detectPlatform, normalizeUrl } from './constants';
 import { fetchFeedUpdates, fetchSingleFeedUpdate } from './services/feedService';
+import { isLicenseActivated } from './services/licenseService';
 import { Sparkles, LayoutGrid, AlertTriangle, RefreshCw } from 'lucide-react';
 
 // 版本号 - 更新此值会清除旧数据并使用新的初始订阅
@@ -64,6 +66,10 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [refreshProgress, setRefreshProgress] = useState<string>('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'youtube' | 'twitter'>('all');
+  
+  // 授权状态
+  const [isActivated, setIsActivated] = useState(() => isLicenseActivated());
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
 
   // Persist subscriptions
   useEffect(() => {
@@ -225,6 +231,8 @@ const App: React.FC = () => {
           lastUpdated={lastUpdated}
           subscriptions={subscriptions}
           onImportSubscriptions={handleImportSubscriptions}
+          onOpenLicense={() => setIsLicenseModalOpen(true)}
+          isActivated={isActivated}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
@@ -294,6 +302,13 @@ const App: React.FC = () => {
           )}
         </main>
       </div>
+      
+      {/* 授权弹窗 */}
+      <LicenseModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        onActivated={() => setIsActivated(true)}
+      />
     </div>
   );
 };
