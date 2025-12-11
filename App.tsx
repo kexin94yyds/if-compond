@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import FeedCard from './components/FeedCard';
@@ -8,10 +8,16 @@ import { fetchFeedUpdates, fetchSingleFeedUpdate } from './services/feedService'
 import { Sparkles, LayoutGrid, AlertTriangle, RefreshCw } from 'lucide-react';
 
 // 版本号 - 更新此值会清除旧数据并使用新的初始订阅
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 
 const App: React.FC = () => {
-  // 检查版本，如果版本更新则清除旧数据
+  // State for subscriptions, initialized from localStorage
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => {
+    const saved = localStorage.getItem('subscriptions');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  // 检查版本并加载默认订阅
   useEffect(() => {
     const savedVersion = localStorage.getItem('appVersion');
     if (savedVersion !== APP_VERSION) {
@@ -19,15 +25,30 @@ const App: React.FC = () => {
       localStorage.removeItem('feedItems');
       localStorage.removeItem('lastUpdated');
       localStorage.setItem('appVersion', APP_VERSION);
-      window.location.reload();
+      
+      // 从 JSON 文件加载默认订阅
+      fetch('/default-subscriptions.json')
+        .then(res => res.json())
+        .then((data: Subscription[]) => {
+          setSubscriptions(data);
+          localStorage.setItem('subscriptions', JSON.stringify(data));
+        })
+        .catch(() => {
+          // 回退到 constants 中的默认值
+          setSubscriptions(INITIAL_SUBSCRIPTIONS);
+        });
+    } else if (subscriptions.length === 0) {
+      // 如果没有保存的订阅，尝试加载默认订阅
+      fetch('/default-subscriptions.json')
+        .then(res => res.json())
+        .then((data: Subscription[]) => {
+          setSubscriptions(data);
+        })
+        .catch(() => {
+          setSubscriptions(INITIAL_SUBSCRIPTIONS);
+        });
     }
   }, []);
-
-  // State for subscriptions, initialized from localStorage or defaults
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => {
-    const saved = localStorage.getItem('subscriptions');
-    return saved ? JSON.parse(saved) : INITIAL_SUBSCRIPTIONS;
-  });
 
   const [feedItems, setFeedItems] = useState<FeedItem[]>(() => {
       const saved = localStorage.getItem('feedItems');
@@ -42,6 +63,7 @@ const App: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
   const [refreshProgress, setRefreshProgress] = useState<string>('');
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'youtube' | 'twitter'>('all');
 
   // Persist subscriptions
   useEffect(() => {
@@ -114,17 +136,23 @@ const App: React.FC = () => {
   };
 
   const refreshFeed = useCallback(async () => {
-    if (subscriptions.length === 0) {
-      setError('请先添加订阅源');
+    // 根据平台过滤器确定要更新的订阅
+    const subsToRefresh = platformFilter === 'all' 
+      ? subscriptions 
+      : subscriptions.filter(s => s.platform === platformFilter);
+    
+    if (subsToRefresh.length === 0) {
+      setError(platformFilter === 'all' ? '请先添加订阅源' : `没有 ${platformFilter === 'youtube' ? 'YouTube' : 'X'} 订阅源`);
       return;
     }
     
     setIsRefreshing(true);
     setError(null);
-    setRefreshProgress(`正在获取 ${subscriptions.length} 个订阅的最新内容...`);
+    const platformLabel = platformFilter === 'youtube' ? 'YouTube' : platformFilter === 'twitter' ? 'X' : '';
+    setRefreshProgress(`正在获取 ${subsToRefresh.length} 个${platformLabel}订阅的最新内容...`);
     
     try {
-      const newItems = await fetchFeedUpdates(subscriptions);
+      const newItems = await fetchFeedUpdates(subsToRefresh);
       
       // 过滤有效的 items
       const validItems = newItems.filter(i => i.title && i.link && i.link !== '#');
@@ -132,12 +160,24 @@ const App: React.FC = () => {
       if (validItems.length === 0) {
         setError('未能获取到任何内容，请稍后重试');
       } else {
-        setFeedItems(validItems);
+        // 如果是过滤刷新，只更新对应平台的 items，保留其他平台的
+        if (platformFilter !== 'all') {
+          setFeedItems(prev => {
+            // 移除当前平台的旧 items，添加新的
+            const otherPlatformItems = prev.filter(item => {
+              const sub = subscriptions.find(s => s.id === item.subscriptionId);
+              return sub && sub.platform !== platformFilter;
+            });
+            return [...validItems, ...otherPlatformItems];
+          });
+        } else {
+          setFeedItems(validItems);
+        }
         setLastUpdated(new Date());
         
         // 如果部分订阅没有获取到内容，显示警告
-        if (validItems.length < subscriptions.length) {
-          console.warn(`只获取到 ${validItems.length}/${subscriptions.length} 个订阅的内容`);
+        if (validItems.length < subsToRefresh.length) {
+          console.warn(`只获取到 ${validItems.length}/${subsToRefresh.length} 个订阅的内容`);
         }
       }
     } catch (err) {
@@ -147,13 +187,22 @@ const App: React.FC = () => {
       setIsRefreshing(false);
       setRefreshProgress('');
     }
-  }, [subscriptions]);
+  }, [subscriptions, platformFilter]);
 
   // Get subscription name helper
   const getSubName = (subId: string) => {
     const sub = subscriptions.find(s => s.id === subId);
     return sub ? sub.name : 'Unknown Source';
   };
+
+  // 根据平台过滤器过滤 feedItems
+  const filteredFeedItems = useMemo(() => {
+    if (platformFilter === 'all') return feedItems;
+    return feedItems.filter(item => {
+      const sub = subscriptions.find(s => s.id === item.subscriptionId);
+      return sub && sub.platform === platformFilter;
+    });
+  }, [feedItems, subscriptions, platformFilter]);
 
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-200 font-sans">
@@ -164,6 +213,8 @@ const App: React.FC = () => {
         onTogglePin={handleTogglePin}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        platformFilter={platformFilter}
+        onPlatformFilterChange={setPlatformFilter}
       />
 
       <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
@@ -203,9 +254,9 @@ const App: React.FC = () => {
             </div>
           )}
           
-          {feedItems.length > 0 ? (
+          {filteredFeedItems.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {feedItems.map((item) => (
+              {filteredFeedItems.map((item) => (
                 <FeedCard 
                   key={item.id} 
                   item={item} 

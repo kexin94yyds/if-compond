@@ -5,15 +5,15 @@
 
 import { FeedItem } from '../types';
 
-// 多个 Nitter 实例（作为 Twitter RSS 代理）
+// 多个 Nitter 实例（作为 Twitter RSS 代理）- 2024/12 更新
 const NITTER_INSTANCES = [
-  'https://nitter.privacydev.net',
+  'https://nitter.net',
+  'https://xcancel.com',
   'https://nitter.poast.org',
-  'https://nitter.1d4.us',
+  'https://nitter.catsarch.com',
+  'https://nitter.privacyredirect.com',
+  'https://nitter.tiekoetter.com',
 ];
-
-// RSS to JSON 代理
-const RSS_PROXY = 'https://api.rss2json.com/v1/api.json?rss_url=';
 
 /**
  * 从 Twitter URL 提取用户名
@@ -31,27 +31,149 @@ export const extractTwitterUsername = (url: string): string | null => {
 };
 
 /**
- * 尝试通过 Nitter RSS 获取推文
+ * 本地 Bridge Server 地址（用于爬取 Twitter）
+ */
+const BRIDGE_SERVER_URL = 'http://localhost:5050';
+
+/**
+ * 尝试通过 Twitter GraphQL API 获取推文（最可靠）
+ */
+const fetchFromGraphQL = async (username: string): Promise<any[] | null> => {
+  try {
+    // 使用相对路径，开发环境通过 Vite 代理，生产环境直接访问 Netlify Functions
+    const baseUrl = '';
+    
+    console.log(`🐦 Trying Twitter GraphQL API for @${username}...`);
+    
+    const response = await fetch(
+      `${baseUrl}/.netlify/functions/twitter-graphql?username=${encodeURIComponent(username)}&action=tweets`,
+      { signal: AbortSignal.timeout(15000) }
+    );
+    
+    if (!response.ok) {
+      console.log('GraphQL API returned:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    if (data.status === 'ok' && data.tweets?.tweets?.length > 0) {
+      console.log(`✅ Twitter GraphQL success, found ${data.tweets.tweets.length} tweets`);
+      return data.tweets.tweets.map((tweet: any) => ({
+        title: tweet.text?.substring(0, 150) || '',
+        link: tweet.link,
+        pubDate: tweet.createdAt,
+        description: tweet.text,
+        imageUrl: tweet.imageUrl,
+      }));
+    }
+    return null;
+  } catch (error) {
+    console.log('Twitter GraphQL not available:', error);
+    return null;
+  }
+};
+
+/**
+ * 尝试通过本地 Bridge Server 获取 Twitter 内容
+ */
+const fetchFromBridgeServer = async (username: string): Promise<any | null> => {
+  try {
+    console.log(`🔗 Trying Bridge Server for @${username}...`);
+    
+    const response = await fetch(`${BRIDGE_SERVER_URL}/crawl`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handle: username, limit: 10 }),
+      signal: AbortSignal.timeout(30000) // 30秒超时
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      console.log('Bridge Server error:', error);
+      return null;
+    }
+    
+    const data = await response.json();
+    if (data.status === 'success' && data.output) {
+      console.log(`✅ Bridge Server success for @${username}`);
+      // 解析输出，获取最新推文
+      const lines = data.output.split('\n').filter((line: string) => line.match(/^\d{4}-\d{2}-\d{2}\t/));
+      if (lines.length > 0) {
+        const [date, ...contentParts] = lines[0].split('\t');
+        return {
+          title: contentParts.join('\t').substring(0, 150),
+          link: `https://x.com/${username}`,
+          pubDate: date,
+          description: contentParts.join('\t'),
+        };
+      }
+    }
+    return null;
+  } catch (error) {
+    console.log('Bridge Server not available:', error);
+    return null;
+  }
+};
+
+/**
+ * 尝试通过多种方式获取 Twitter 内容
  */
 const fetchFromNitter = async (username: string): Promise<any[]> => {
+  // 1. 首先尝试 Twitter GraphQL API（最可靠）
+  const graphqlResult = await fetchFromGraphQL(username);
+  if (graphqlResult && graphqlResult.length > 0) {
+    return graphqlResult;
+  }
+  
+  // 2. 尝试本地 Bridge Server
+  const bridgeResult = await fetchFromBridgeServer(username);
+  if (bridgeResult) {
+    return [bridgeResult];
+  }
+  
+  // 2. 检测是否在生产环境
+  const isProduction = window.location.hostname !== 'localhost';
+  
+  if (isProduction) {
+    // 生产环境：使用 Netlify Function
+    try {
+      const response = await fetch(`/.netlify/functions/twitter-rss?username=${encodeURIComponent(username)}`, {
+        signal: AbortSignal.timeout(15000)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'ok' && data.items && data.items.length > 0) {
+          console.log(`✅ Netlify Function success, found ${data.items.length} items`);
+          return data.items;
+        }
+      }
+    } catch (error) {
+      console.log('Netlify Function failed:', error);
+    }
+    return [];
+  }
+  
+  // 3. 开发环境 fallback：尝试 Nitter 实例（通过 CORS 代理）
   for (const instance of NITTER_INSTANCES) {
     try {
       const rssUrl = `${instance}/${username}/rss`;
-      const proxyUrl = `${RSS_PROXY}${encodeURIComponent(rssUrl)}`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`;
       
       console.log(`Trying Nitter instance: ${instance}`);
       
       const response = await fetch(proxyUrl, { 
-        signal: AbortSignal.timeout(5000) // 5秒超时
+        signal: AbortSignal.timeout(8000)
       });
       
       if (!response.ok) continue;
       
-      const data = await response.json();
+      const xml = await response.text();
+      const items = parseRssXml(xml);
       
-      if (data.status === 'ok' && data.items && data.items.length > 0) {
+      if (items.length > 0) {
         console.log(`✅ Nitter success from ${instance}`);
-        return data.items;
+        return items;
       }
     } catch (error) {
       console.log(`Nitter instance ${instance} failed:`, error);
@@ -59,6 +181,57 @@ const fetchFromNitter = async (username: string): Promise<any[]> => {
   }
   
   return [];
+};
+
+/**
+ * 解析 RSS XML 为 items 数组
+ */
+const parseRssXml = (xml: string): any[] => {
+  const items: any[] = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const itemXml = match[1];
+    
+    const title = extractXmlTag(itemXml, 'title');
+    const link = extractXmlTag(itemXml, 'link');
+    const pubDate = extractXmlTag(itemXml, 'pubDate');
+    const description = extractXmlTag(itemXml, 'description');
+    
+    if (title || link) {
+      items.push({
+        title: decodeHtmlEntities(title || ''),
+        link: link || '',
+        pubDate: pubDate || '',
+        description: decodeHtmlEntities(description || ''),
+        content: description,
+      });
+    }
+  }
+  
+  return items;
+};
+
+const extractXmlTag = (xml: string, tag: string): string | null => {
+  // 处理 CDATA
+  const cdataRegex = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]></${tag}>`, 'i');
+  const cdataMatch = xml.match(cdataRegex);
+  if (cdataMatch) return cdataMatch[1];
+  
+  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i');
+  const match = xml.match(regex);
+  return match ? match[1].trim() : null;
+};
+
+const decodeHtmlEntities = (text: string): string => {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
 };
 
 /**
@@ -106,7 +279,8 @@ const getRelativeTime = (dateStr: string): string => {
 const rssToFeedItem = (
   rssItem: any,
   subscriptionId: string,
-  username: string
+  username: string,
+  index: number = 0
 ): FeedItem => {
   // 提取推文文本（去除 HTML 标签）
   const text = (rssItem.title || rssItem.description || '')
@@ -117,11 +291,11 @@ const rssToFeedItem = (
     .replace(/&quot;/g, '"')
     .substring(0, 150);
   
-  // 尝试提取图片
-  const imageUrl = extractImageFromContent(rssItem.content || rssItem.description);
+  // 优先使用传入的图片 URL，否则尝试从内容中提取
+  const imageUrl = rssItem.imageUrl || extractImageFromContent(rssItem.content || rssItem.description);
   
   return {
-    id: `tw-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `tw-${subscriptionId}-${index}-${Date.now()}`,
     subscriptionId,
     title: text || `Tweet from @${username}`,
     link: rssItem.link || `https://twitter.com/${username}`,
@@ -135,17 +309,29 @@ const rssToFeedItem = (
 };
 
 /**
- * 获取 Twitter 用户的最新推文
+ * 获取 Twitter 用户的最新推文（单条）
  */
 export const fetchTwitterLatest = async (
   twitterUrl: string,
   subscriptionId: string
 ): Promise<FeedItem | null> => {
+  const items = await fetchTwitterMultiple(twitterUrl, subscriptionId, 1);
+  return items.length > 0 ? items[0] : null;
+};
+
+/**
+ * 获取 Twitter 用户的多条推文
+ */
+export const fetchTwitterMultiple = async (
+  twitterUrl: string,
+  subscriptionId: string,
+  limit: number = 10
+): Promise<FeedItem[]> => {
   try {
     const username = extractTwitterUsername(twitterUrl);
     if (!username) {
       console.log('Cannot extract username from:', twitterUrl);
-      return null;
+      return [];
     }
     
     console.log(`🐦 Fetching Twitter RSS for @${username}...`);
@@ -155,25 +341,17 @@ export const fetchTwitterLatest = async (
     
     if (items.length === 0) {
       console.log('No Twitter items found via RSS');
-      return null;
+      return [];
     }
     
-    // 过滤：只保留最近一个月的推文
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+    console.log(`Found ${items.length} tweets for @${username}`);
     
-    const recentTweets = items.filter((item: any) => {
-      const pubDate = new Date(item.pubDate);
-      return pubDate > oneMonthAgo;
-    });
-    
-    const latestItem = recentTweets.length > 0 ? recentTweets[0] : items[0];
-    
-    console.log(`Found latest tweet: ${latestItem.title?.substring(0, 50)}...`);
-    
-    return rssToFeedItem(latestItem, subscriptionId, username);
+    // 返回最多 limit 条推文
+    return items.slice(0, limit).map((item: any, index: number) => 
+      rssToFeedItem(item, subscriptionId, username, index)
+    );
   } catch (error) {
-    console.error('fetchTwitterLatest failed:', error);
-    return null;
+    console.error('fetchTwitterMultiple failed:', error);
+    return [];
   }
 };

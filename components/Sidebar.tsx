@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Globe, Link as LinkIcon, X, AlertCircle, CheckCircle, Loader2, Pin } from 'lucide-react';
+import { Plus, Trash2, Globe, Link as LinkIcon, X, AlertCircle, CheckCircle, Loader2, Pin, Youtube } from 'lucide-react';
 import { Subscription } from '../types';
 import { detectPlatform, PLATFORM_ICONS, extractCreatorName, validateSubscriptionUrl, normalizeUrl } from '../constants';
 
@@ -45,6 +45,8 @@ interface SidebarProps {
   onTogglePin: (id: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  platformFilter: 'all' | 'youtube' | 'twitter';
+  onPlatformFilterChange: (filter: 'all' | 'youtube' | 'twitter') => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -53,7 +55,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRemoveSubscription,
   onTogglePin,
   isOpen,
-  onClose
+  onClose,
+  platformFilter,
+  onPlatformFilterChange
 }) => {
   const [newUrl, setNewUrl] = useState('');
   const [newName, setNewName] = useState('');
@@ -241,12 +245,41 @@ const Sidebar: React.FC<SidebarProps> = ({
           </form>
 
           <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-            <h2 className="text-xs font-semibold text-zinc-500 mb-4 uppercase tracking-wider">
-              已订阅 ({subscriptions.length})
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                已订阅 ({platformFilter === 'all' ? subscriptions.length : subscriptions.filter(s => s.platform === platformFilter).length})
+              </h2>
+              <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-0.5">
+                <button
+                  onClick={() => onPlatformFilterChange('youtube')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                    platformFilter === 'youtube'
+                      ? 'bg-red-600 text-white'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Youtube size={12} />
+                  <span>YouTube</span>
+                </button>
+                <button
+                  onClick={() => onPlatformFilterChange('twitter')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                    platformFilter === 'twitter'
+                      ? 'bg-zinc-100 text-black'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <X size={12} />
+                  <span>X</span>
+                </button>
+              </div>
+            </div>
             <div className="space-y-2">
-              {/* 置顶的排在前面 */}
-              {[...subscriptions].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)).map((sub) => {
+              {/* 置顶的排在前面，并按平台过滤 */}
+              {[...subscriptions]
+                .filter(sub => platformFilter === 'all' || sub.platform === platformFilter)
+                .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+                .map((sub) => {
                 // 安全地获取 hostname
                 let hostname = '';
                 try {

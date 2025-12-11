@@ -24,6 +24,13 @@ export default defineConfig(({ mode }) => {
         port: 3001, // 使用 3001 端口，避免与 zenflow (3000) 冲突
         host: '0.0.0.0',
         strictPort: false, // 如果 3001 被占用，自动尝试下一个可用端口
+        proxy: {
+          // 代理 Netlify Functions 请求到本地 functions 服务器
+          '/.netlify/functions': {
+            target: 'http://localhost:9999',
+            changeOrigin: true,
+          },
+        },
       },
       plugins: [react()],
       // 注意：Vite 会自动暴露 VITE_ 开头的变量到 import.meta.env

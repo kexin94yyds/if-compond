@@ -5,7 +5,7 @@
 
 import { FeedItem, Subscription } from "../types";
 import { fetchYoutubeLatest } from "./youtubeService";
-import { fetchTwitterLatest } from "./twitterService";
+import { fetchTwitterLatest, fetchTwitterMultiple } from "./twitterService";
 
 /**
  * 获取所有订阅的最新内容（仅使用 RSS）
@@ -20,7 +20,7 @@ export const fetchFeedUpdates = async (subscriptions: Subscription[]): Promise<F
   console.log(`📡 Fetching RSS feeds for ${sortedSubs.length} subscriptions...`);
   
   // 并行获取所有订阅
-  const promises = sortedSubs.map(async (sub) => {
+  const promises = sortedSubs.map(async (sub): Promise<FeedItem | FeedItem[] | null> => {
     try {
       // YouTube RSS
       if (sub.platform === 'youtube') {
@@ -34,12 +34,12 @@ export const fetchFeedUpdates = async (subscriptions: Subscription[]): Promise<F
         }
       }
       
-      // Twitter RSS (通过 Nitter)
+      // Twitter RSS (通过 GraphQL API 获取多条推文)
       if (sub.platform === 'twitter') {
-        const result = await fetchTwitterLatest(sub.url, sub.id);
-        if (result) {
-          console.log(`✅ Twitter: ${sub.name} -> ${result.title}`);
-          return result;
+        const tweetResults = await fetchTwitterMultiple(sub.url, sub.id, 10);
+        if (tweetResults.length > 0) {
+          console.log(`✅ Twitter: ${sub.name} -> ${tweetResults.length} tweets`);
+          return tweetResults; // 返回数组
         } else {
           console.log(`⚠️ ${sub.name}: Twitter RSS 获取失败`);
           return null;
@@ -57,10 +57,14 @@ export const fetchFeedUpdates = async (subscriptions: Subscription[]): Promise<F
 
   const allResults = await Promise.all(promises);
   
-  // 过滤掉 null 结果
+  // 过滤掉 null 结果，支持数组类型
   for (const result of allResults) {
     if (result) {
-      results.push(result);
+      if (Array.isArray(result)) {
+        results.push(...result);
+      } else {
+        results.push(result);
+      }
     }
   }
 
