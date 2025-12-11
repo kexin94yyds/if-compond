@@ -12,18 +12,30 @@ const CACHE_TTL_SECONDS = 30 * 60;
 const PROXY_URL = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
 const isLocalDev = process.env.NETLIFY_DEV === 'true' || !process.env.NETLIFY;
 
+// 模拟浏览器 User-Agent
+const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
 // 使用代理的 fetch（仅本地开发时）
 const fetchWithProxy = async (url: string, options: any = {}) => {
+  // 添加默认请求头
+  const headers = {
+    ...options.headers,
+    'User-Agent': USER_AGENT,
+    'Accept': '*/*',
+    'Accept-Language': 'en-US,en;q=0.9',
+  };
+  
   if (isLocalDev && PROXY_URL) {
     // 本地开发：使用代理
     const proxyAgent = new ProxyAgent(PROXY_URL || 'http://127.0.0.1:7897');
     return undiciFetch(url, {
       ...options,
+      headers,
       dispatcher: proxyAgent,
     });
   } else {
     // 生产环境：直接访问
-    return fetch(url, options);
+    return fetch(url, { ...options, headers });
   }
 };
 
