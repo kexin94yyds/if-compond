@@ -1,8 +1,12 @@
 import type { Handler } from '@netlify/functions';
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { getStore } from '@netlify/blobs';
 
 // Twitter GraphQL API endpoints
 const TWITTER_GRAPHQL_BASE = 'https://api.twitter.com/graphql';
+
+// 缓存配置：30 分钟
+const CACHE_TTL_SECONDS = 30 * 60;
 
 // 检测是否需要代理（仅本地开发环境）
 const PROXY_URL = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
@@ -78,8 +82,36 @@ const handler: Handler = async (event) => {
         body: JSON.stringify({ status: 'ok', user }),
       };
     } else if (action === 'tweets') {
+      // 检查缓存
+      try {
+        const store = getStore('twitter-cache');
+        const cacheKey = `tweets-${username}`;
+        const cached = await store.get(cacheKey, { type: 'json' });
+        if (cached) {
+          console.log(`📦 Cache hit for @${username}`);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ status: 'ok', tweets: cached, cached: true }),
+          };
+        }
+      } catch (e) {
+        console.log('Cache read error:', e);
+      }
+      
       // 获取用户推文
       const tweets = await fetchUserTweets(username, ct0, authToken);
+      
+      // 存储到缓存
+      try {
+        const store = getStore('twitter-cache');
+        const cacheKey = `tweets-${username}`;
+        await store.setJSON(cacheKey, tweets, { metadata: { ttl: CACHE_TTL_SECONDS } });
+        console.log(`💾 Cached tweets for @${username}`);
+      } catch (e) {
+        console.log('Cache write error:', e);
+      }
+      
       return {
         statusCode: 200,
         headers,
