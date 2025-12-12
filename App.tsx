@@ -67,6 +67,25 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [refreshProgress, setRefreshProgress] = useState<string>('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'youtube' | 'twitter'>('all');
+
+  const sortFeedItems = useCallback((items: FeedItem[]) => {
+    return [...items].sort((a, b) => {
+      // 1. 置顶订阅的内容优先
+      const subA = subscriptions.find(s => s.id === a.subscriptionId);
+      const subB = subscriptions.find(s => s.id === b.subscriptionId);
+      const pinnedA = subA?.pinned ? 1 : 0;
+      const pinnedB = subB?.pinned ? 1 : 0;
+      if (pinnedB !== pinnedA) return pinnedB - pinnedA;
+
+      // 2. 同等置顶状态下按发布时间排序
+      const taRaw = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+      const tbRaw = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      const ta = Number.isNaN(taRaw) ? 0 : taRaw;
+      const tb = Number.isNaN(tbRaw) ? 0 : tbRaw;
+      if (tb !== ta) return tb - ta;
+      return b.id.localeCompare(a.id);
+    });
+  }, [subscriptions]);
   
   // 授权状态
   const [isActivated, setIsActivated] = useState(() => isLicenseActivated());
@@ -176,10 +195,10 @@ const App: React.FC = () => {
     setRefreshProgress(`正在获取 ${subsToRefresh.length} 个${platformLabel}订阅的最新内容...`);
     
     try {
-      const newItems = await fetchFeedUpdates(subsToRefresh);
+      const newItems = await fetchFeedUpdates(subsToRefresh, { forceRefresh: true });
       
       // 过滤有效的 items
-      const validItems = newItems.filter(i => i.title && i.link && i.link !== '#');
+      const validItems = sortFeedItems(newItems.filter(i => i.title && i.link && i.link !== '#'));
       
       if (validItems.length === 0) {
         setError('未能获取到任何内容，请稍后重试');
@@ -192,7 +211,7 @@ const App: React.FC = () => {
               const sub = subscriptions.find(s => s.id === item.subscriptionId);
               return sub && sub.platform !== platformFilter;
             });
-            return [...validItems, ...otherPlatformItems];
+            return sortFeedItems([...validItems, ...otherPlatformItems]);
           });
         } else {
           setFeedItems(validItems);
@@ -218,7 +237,7 @@ const App: React.FC = () => {
       setIsRefreshing(false);
       setRefreshProgress('');
     }
-  }, [subscriptions, platformFilter, isActivated, usageCount]);
+  }, [subscriptions, platformFilter, isActivated, usageCount, sortFeedItems]);
 
   // Get subscription name helper
   const getSubName = (subId: string) => {

@@ -116,16 +116,21 @@ export async function validateLicenseOnline(key: string): Promise<LicenseValidat
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ licenseKey: key }),
     });
-    
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { valid: false, error: '服务器响应异常' };
+    }
+
     const result = await response.json();
-    
+
     if (result.success && result.valid) {
       return {
         valid: true,
         info: result.license,
       };
     }
-    
+
     return {
       valid: false,
       error: result.error || '密钥无效',
@@ -153,31 +158,34 @@ export async function activateLicense(key: string, email: string): Promise<Licen
   if (!email || !email.includes('@')) {
     return { valid: false, error: '请输入有效的邮箱地址' };
   }
-  
-  // 3. 调用后端验证密钥是否存在于数据库
+
   try {
     const response = await fetch('/.netlify/functions/activate-license', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ licenseKey: formattedKey, email }),
     });
-    
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { valid: false, error: '服务器响应异常' };
+    }
+
     const result = await response.json();
-    
+
     if (result.success) {
-      // 后端验证通过，保存到本地
       saveLicenseLocally(formattedKey, email);
       return {
         valid: true,
         info: {
           key: formattedKey,
           email: email,
-          activatedAt: new Date().toISOString(),
+          activatedAt: result.license?.activatedAt || new Date().toISOString(),
           type: 'lifetime',
         },
       };
     }
-    
+
     return {
       valid: false,
       error: result.error || '密钥无效或不存在',
@@ -204,14 +212,19 @@ export async function deactivateLicense(): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ licenseKey: key }),
     });
-    
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return false;
+    }
+
     const result = await response.json();
-    
+
     if (result.success) {
       clearLocalLicense();
       return true;
     }
-    
+
     return false;
   } catch (error) {
     console.error('License deactivation error:', error);
