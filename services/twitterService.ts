@@ -55,10 +55,10 @@ const BRIDGE_SERVER_URL = 'http://localhost:5050';
 /**
  * 尝试通过 Twitter GraphQL API 获取推文（最可靠）
  */
-const fetchFromGraphQL = async (username: string): Promise<any[] | null> => {
+const fetchFromGraphQL = async (username: string, count: number = 20): Promise<any[] | null> => {
   // 先检查缓存
   const cached = getCachedTweets(username);
-  if (cached) {
+  if (cached && cached.length >= count) {
     return cached;
   }
   
@@ -69,7 +69,7 @@ const fetchFromGraphQL = async (username: string): Promise<any[] | null> => {
     console.log(`🐦 Trying Twitter GraphQL API for @${username}...`);
     
     const response = await fetch(
-      `${baseUrl}/.netlify/functions/twitter-graphql?username=${encodeURIComponent(username)}&action=tweets`,
+      `${baseUrl}/.netlify/functions/twitter-graphql?username=${encodeURIComponent(username)}&action=tweets&count=${count}`,
       { signal: AbortSignal.timeout(15000) }
     );
     
@@ -144,9 +144,9 @@ const fetchFromBridgeServer = async (username: string): Promise<any | null> => {
 /**
  * 尝试通过多种方式获取 Twitter 内容
  */
-const fetchFromNitter = async (username: string): Promise<any[]> => {
+const fetchFromNitter = async (username: string, count: number = 20): Promise<any[]> => {
   // 1. 首先尝试 Twitter GraphQL API（最可靠）
-  const graphqlResult = await fetchFromGraphQL(username);
+  const graphqlResult = await fetchFromGraphQL(username, count);
   if (graphqlResult && graphqlResult.length > 0) {
     return graphqlResult;
   }
@@ -367,7 +367,7 @@ export const fetchTwitterMultiple = async (
     console.log(`🐦 Fetching Twitter RSS for @${username}...`);
     
     // 尝试 Nitter RSS
-    const items = await fetchFromNitter(username);
+    const items = await fetchFromNitter(username, limit);
     
     if (items.length === 0) {
       console.log('No Twitter items found via RSS');

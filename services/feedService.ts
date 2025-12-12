@@ -36,7 +36,7 @@ export const fetchFeedUpdates = async (subscriptions: Subscription[]): Promise<F
       
       // Twitter RSS (通过 GraphQL API 获取多条推文)
       if (sub.platform === 'twitter') {
-        const tweetResults = await fetchTwitterMultiple(sub.url, sub.id, 10);
+        const tweetResults = await fetchTwitterMultiple(sub.url, sub.id, 50);
         if (tweetResults.length > 0) {
           console.log(`✅ Twitter: ${sub.name} -> ${tweetResults.length} tweets`);
           return tweetResults; // 返回数组
