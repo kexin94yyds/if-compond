@@ -13,12 +13,9 @@ export interface FeedItem {
   title: string;
   link: string;
   date: string;
-  publishedAt?: string;
   imageUrl?: string;
   platform: string;
   summary?: string;
-  isReply?: boolean;
-  isRetweet?: boolean;
 }
 
 export interface FetchResult {

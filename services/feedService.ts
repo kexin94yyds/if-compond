@@ -5,15 +5,12 @@
 
 import { FeedItem, Subscription } from "../types";
 import { fetchYoutubeLatest } from "./youtubeService";
-import { fetchTwitterLatest, fetchTwitterMultiple, TwitterFetchOptions } from "./twitterService";
+import { fetchTwitterLatest, fetchTwitterMultiple } from "./twitterService";
 
 /**
  * 获取所有订阅的最新内容（仅使用 RSS）
  */
-export const fetchFeedUpdates = async (
-  subscriptions: Subscription[],
-  options?: { forceRefresh?: boolean }
-): Promise<FeedItem[]> => {
+export const fetchFeedUpdates = async (subscriptions: Subscription[]): Promise<FeedItem[]> => {
   if (subscriptions.length === 0) return [];
 
   const results: FeedItem[] = [];
@@ -39,12 +36,7 @@ export const fetchFeedUpdates = async (
       
       // Twitter RSS (通过 GraphQL API 获取多条推文)
       if (sub.platform === 'twitter') {
-        const twitterOptions: TwitterFetchOptions = {
-          forceRefresh: options?.forceRefresh,
-          days: 30,
-          replyLimit: 10,
-        };
-        const tweetResults = await fetchTwitterMultiple(sub.url, sub.id, 50, twitterOptions);
+        const tweetResults = await fetchTwitterMultiple(sub.url, sub.id, 10);
         if (tweetResults.length > 0) {
           console.log(`✅ Twitter: ${sub.name} -> ${tweetResults.length} tweets`);
           return tweetResults; // 返回数组

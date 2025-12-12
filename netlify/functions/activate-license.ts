@@ -2,9 +2,9 @@ import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://pgnxluovitiwgvzutjuh.supabase.co';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnbnhsdW92aXRpd2d2enV0anVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MDI2OTUsImV4cCI6MjA4MDQ3ODY5NX0.jnhAqNfnS_3trkbxEzQyPZG8omRejsdXpj7GCBoU9m0';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || '');
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /**
  * 密钥激活 API
@@ -30,14 +30,6 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    if (!SUPABASE_SERVICE_ROLE_KEY) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ success: false, error: '服务器配置错误' }),
-      };
-    }
-
     const { licenseKey, email } = JSON.parse(event.body || '{}');
 
     if (!licenseKey || !email) {
@@ -96,14 +88,6 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    if (existing.email && existing.email.toLowerCase() !== email.toLowerCase()) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ success: false, error: '邮箱不匹配' }),
-      };
-    }
-
     // 检查激活次数
     if (existing.current_activations >= existing.max_activations) {
       return {
@@ -120,7 +104,7 @@ export const handler: Handler = async (event) => {
       .update({
         status: 'active',
         activated_at: now,
-        email: existing.email || email,
+        email: email,
         current_activations: existing.current_activations + 1,
       })
       .eq('license_key', formattedKey);

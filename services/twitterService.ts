@@ -9,13 +9,6 @@ import { FeedItem } from '../types';
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const twitterCache: Map<string, { data: any[]; timestamp: number }> = new Map();
 
- export type TwitterFetchOptions = {
-   forceRefresh?: boolean;
-   days?: number;
-   replyLimit?: number;
-   limit?: number;
- };
-
 const getCachedTweets = (username: string): any[] | null => {
   const cached = twitterCache.get(username);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -27,14 +20,6 @@ const getCachedTweets = (username: string): any[] | null => {
 
 const setCachedTweets = (username: string, data: any[]) => {
   twitterCache.set(username, { data, timestamp: Date.now() });
-};
-
-export const clearTwitterCache = (username?: string) => {
-  if (username) {
-    twitterCache.delete(username);
-    return;
-  }
-  twitterCache.clear();
 };
 
 // 多个 Nitter 实例（作为 Twitter RSS 代理）- 2024/12 更新
@@ -70,17 +55,11 @@ const BRIDGE_SERVER_URL = 'http://localhost:5050';
 /**
  * 尝试通过 Twitter GraphQL API 获取推文（最可靠）
  */
-const fetchFromGraphQL = async (username: string, options?: TwitterFetchOptions): Promise<any[] | null> => {
-  const useCache = !options?.forceRefresh;
-  if (useCache) {
-    const cached = getCachedTweets(username);
-    if (cached) {
-      const need = options?.limit;
-      if (!need || cached.length >= need) {
-        return cached;
-      }
-      console.log(`📦 Cached data for @${username} has ${cached.length} tweets, need ${need}, refetching...`);
-    }
+const fetchFromGraphQL = async (username: string): Promise<any[] | null> => {
+  // 先检查缓存
+  const cached = getCachedTweets(username);
+  if (cached) {
+    return cached;
   }
   
   try {
@@ -89,10 +68,8 @@ const fetchFromGraphQL = async (username: string, options?: TwitterFetchOptions)
     
     console.log(`🐦 Trying Twitter GraphQL API for @${username}...`);
     
-    const refreshParam = options?.forceRefresh ? '&refresh=1' : '';
-    const countParam = options?.limit ? `&count=${encodeURIComponent(String(options.limit))}` : '';
     const response = await fetch(
-      `${baseUrl}/.netlify/functions/twitter-graphql?username=${encodeURIComponent(username)}&action=tweets${refreshParam}${countParam}`,
+      `${baseUrl}/.netlify/functions/twitter-graphql?username=${encodeURIComponent(username)}&action=tweets`,
       { signal: AbortSignal.timeout(15000) }
     );
     
@@ -105,15 +82,13 @@ const fetchFromGraphQL = async (username: string, options?: TwitterFetchOptions)
     if (data.status === 'ok' && data.tweets?.tweets?.length > 0) {
       console.log(`✅ Twitter GraphQL success, found ${data.tweets.tweets.length} tweets`);
       const tweets = data.tweets.tweets.map((tweet: any) => ({
-        id: tweet.id,
         title: tweet.text?.substring(0, 150) || '',
         link: tweet.link,
         pubDate: tweet.createdAt,
         description: tweet.text,
         imageUrl: tweet.imageUrl,
-        isReply: Boolean(tweet.isReply),
-        isRetweet: Boolean(tweet.isRetweet),
       }));
+      // 缓存结果
       setCachedTweets(username, tweets);
       return tweets;
     }
@@ -169,9 +144,9 @@ const fetchFromBridgeServer = async (username: string): Promise<any | null> => {
 /**
  * 尝试通过多种方式获取 Twitter 内容
  */
-const fetchFromNitter = async (username: string, options?: TwitterFetchOptions): Promise<any[]> => {
+const fetchFromNitter = async (username: string): Promise<any[]> => {
   // 1. 首先尝试 Twitter GraphQL API（最可靠）
-  const graphqlResult = await fetchFromGraphQL(username, options);
+  const graphqlResult = await fetchFromGraphQL(username);
   if (graphqlResult && graphqlResult.length > 0) {
     return graphqlResult;
   }
@@ -183,7 +158,7 @@ const fetchFromNitter = async (username: string, options?: TwitterFetchOptions):
   }
   
   // 2. 检测是否在生产环境
-  const isProduction = !Boolean((import.meta as any).env?.DEV);
+  const isProduction = window.location.hostname !== 'localhost';
   
   if (isProduction) {
     // 生产环境：使用 Netlify Function
@@ -342,36 +317,20 @@ const rssToFeedItem = (
     .replace(/&quot;/g, '"')
     .substring(0, 150);
   
-  const normalizedText = (text || '').trim();
-
   // 优先使用传入的图片 URL，否则尝试从内容中提取
   const imageUrl = rssItem.imageUrl || extractImageFromContent(rssItem.content || rssItem.description);
   
-  const statusIdMatch = (rssItem.link || '').match(/\/status\/(\d+)/);
-  const stableId = rssItem.id || statusIdMatch?.[1];
-  const publishedAt = rssItem.pubDate || rssItem.publishedAt || undefined;
-
-  const isReply = rssItem.isReply !== undefined && rssItem.isReply !== null
-    ? Boolean(rssItem.isReply)
-    : /^@/.test(normalizedText);
-  const isRetweet = rssItem.isRetweet !== undefined && rssItem.isRetweet !== null
-    ? Boolean(rssItem.isRetweet)
-    : /^RT\s+@/i.test(normalizedText);
-
   return {
-    id: stableId ? `tw-${subscriptionId}-${stableId}` : `tw-${subscriptionId}-${index}-${Date.now()}`,
+    id: `tw-${subscriptionId}-${index}-${Date.now()}`,
     subscriptionId,
     title: text || `Tweet from @${username}`,
     link: rssItem.link || `https://twitter.com/${username}`,
-    date: getRelativeTime(publishedAt || ''),
-    publishedAt,
+    date: getRelativeTime(rssItem.pubDate),
     imageUrl: imageUrl || undefined,
     platform: 'Twitter',
     summary: rssItem.description 
       ? rssItem.description.replace(/<[^>]*>/g, '').substring(0, 200)
-      : undefined,
-    isReply,
-    isRetweet
+      : undefined
   };
 };
 
@@ -392,8 +351,7 @@ export const fetchTwitterLatest = async (
 export const fetchTwitterMultiple = async (
   twitterUrl: string,
   subscriptionId: string,
-  limit: number = 10,
-  options?: TwitterFetchOptions
+  limit: number = 10
 ): Promise<FeedItem[]> => {
   try {
     const username = extractTwitterUsername(twitterUrl);
@@ -404,18 +362,8 @@ export const fetchTwitterMultiple = async (
     
     console.log(`🐦 Fetching Twitter RSS for @${username}...`);
     
-    const effectiveOptions: TwitterFetchOptions = {
-      days: options?.days ?? 30,
-      replyLimit: options?.replyLimit ?? 10,
-      forceRefresh: options?.forceRefresh,
-      limit
-    };
-
-    if (effectiveOptions.forceRefresh) {
-      clearTwitterCache(username);
-    }
-
-    const items = await fetchFromNitter(username, effectiveOptions);
+    // 尝试 Nitter RSS
+    const items = await fetchFromNitter(username);
     
     if (items.length === 0) {
       console.log('No Twitter items found via RSS');
@@ -424,50 +372,10 @@ export const fetchTwitterMultiple = async (
     
     console.log(`Found ${items.length} tweets for @${username}`);
     
-    const feedItems = items.map((item: any, index: number) => rssToFeedItem(item, subscriptionId, username, index));
-
-    const now = Date.now();
-    const cutoff = now - (effectiveOptions.days ?? 30) * 24 * 60 * 60 * 1000;
-
-    const recentItems = feedItems.filter((it) => {
-      if (!it.publishedAt) return true;
-      const t = new Date(it.publishedAt).getTime();
-      if (Number.isNaN(t)) return true;
-      return t >= cutoff;
-    });
-
-    recentItems.sort((a, b) => {
-      const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-      const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-      return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
-    });
-
-    const replyLimit = Math.max(0, Math.min(effectiveOptions.replyLimit ?? 10, limit));
-    let selectedReplies = 0;
-    const selected: FeedItem[] = [];
-    const selectedIds = new Set<string>();
-
-    for (const item of recentItems) {
-      if (selected.length >= limit) break;
-      const isReplyOrRt = Boolean(item.isReply || item.isRetweet);
-      if (isReplyOrRt) {
-        if (selectedReplies >= replyLimit) continue;
-        selectedReplies += 1;
-      }
-      selected.push(item);
-      selectedIds.add(item.id);
-    }
-
-    if (selected.length < limit) {
-      for (const item of recentItems) {
-        if (selected.length >= limit) break;
-        if (selectedIds.has(item.id)) continue;
-        selected.push(item);
-        selectedIds.add(item.id);
-      }
-    }
-
-    return selected;
+    // 返回最多 limit 条推文
+    return items.slice(0, limit).map((item: any, index: number) => 
+      rssToFeedItem(item, subscriptionId, username, index)
+    );
   } catch (error) {
     console.error('fetchTwitterMultiple failed:', error);
     return [];

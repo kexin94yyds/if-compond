@@ -62,12 +62,6 @@ const handler: Handler = async (event) => {
 
   const username = event.queryStringParameters?.username;
   const action = event.queryStringParameters?.action || 'user'; // user, tweets
-  const refresh = event.queryStringParameters?.refresh === '1' || event.queryStringParameters?.refresh === 'true';
-  const requestedCountRaw = event.queryStringParameters?.count;
-  const requestedCount = requestedCountRaw ? Number.parseInt(requestedCountRaw, 10) : undefined;
-  const count = requestedCount && Number.isFinite(requestedCount)
-    ? Math.max(1, Math.min(100, requestedCount))
-    : 20;
 
   if (!username) {
     return {
@@ -105,34 +99,14 @@ const handler: Handler = async (event) => {
         try {
           const store = getStore('twitter-cache');
           const cacheKey = `tweets-${username}`;
-          if (!refresh) {
-            const cached = await store.getWithMetadata(cacheKey, { type: 'json' });
-            if (cached?.data) {
-              const cachedAt = (cached.metadata as any)?.cachedAt;
-              const cachedAtMs = typeof cachedAt === 'number' ? cachedAt : Number.parseInt(String(cachedAt || ''), 10);
-              const ageSeconds = Number.isFinite(cachedAtMs) ? (Date.now() - cachedAtMs) / 1000 : Number.POSITIVE_INFINITY;
-
-              const cachedTweetsCount = (cached.data as any)?.tweets?.length ?? 0;
-              const cacheValid = ageSeconds < CACHE_TTL_SECONDS;
-              const countSatisfy = cachedTweetsCount >= count;
-
-              if (cacheValid && countSatisfy) {
-                console.log(`📦 Cache hit for @${username} (${Math.floor(ageSeconds)}s old)`);
-                const sliced = {
-                  ...(cached.data as any),
-                  tweets: (cached.data as any).tweets.slice(0, count),
-                };
-                return {
-                  statusCode: 200,
-                  headers,
-                  body: JSON.stringify({ status: 'ok', tweets: sliced, cached: true }),
-                };
-              }
-
-              console.log(`📦 Cache stale/insufficient for @${username} (valid=${cacheValid}, have=${cachedTweetsCount}, need=${count})`);
-            }
-          } else {
-            console.log(`🔄 Refresh requested for @${username}, bypassing cache`);
+          const cached = await store.get(cacheKey, { type: 'json' });
+          if (cached) {
+            console.log(`📦 Cache hit for @${username}`);
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ status: 'ok', tweets: cached, cached: true }),
+            };
           }
         } catch (e) {
           console.log('Cache read error:', e);
@@ -140,14 +114,14 @@ const handler: Handler = async (event) => {
       }
       
       // 获取用户推文
-      const tweets = await fetchUserTweets(username, ct0, authToken, count);
+      const tweets = await fetchUserTweets(username, ct0, authToken);
       
       // 存储到缓存（仅生产环境）
       if (process.env.NETLIFY) {
         try {
           const store = getStore('twitter-cache');
           const cacheKey = `tweets-${username}`;
-          await store.setJSON(cacheKey, tweets, { metadata: { cachedAt: Date.now(), count } });
+          await store.setJSON(cacheKey, tweets, { metadata: { ttl: CACHE_TTL_SECONDS } });
           console.log(`💾 Cached tweets for @${username}`);
         } catch (e) {
           console.log('Cache write error:', e);
@@ -232,14 +206,14 @@ async function fetchUserByScreenName(screenName: string, ct0: string, authToken:
   };
 }
 
-async function fetchUserTweets(screenName: string, ct0: string, authToken: string, count: number) {
+async function fetchUserTweets(screenName: string, ct0: string, authToken: string) {
   // 先获取用户 ID
   const user = await fetchUserByScreenName(screenName, ct0, authToken);
   const userId = user.id;
 
   const variables = JSON.stringify({
     userId,
-    count,
+    count: 20,
     includePromotedContent: false,
     withQuickPromoteEligibilityTweetFields: false,
     withVoice: true,
@@ -320,9 +294,6 @@ async function fetchUserTweets(screenName: string, ct0: string, authToken: strin
               const qtMedia = qtLegacy.extended_entities?.media || [];
               imageUrl = qtMedia.find((m: any) => m.type === 'photo')?.media_url_https;
             }
-
-            const isReply = Boolean(legacy.in_reply_to_status_id_str || legacy.in_reply_to_user_id_str);
-            const isRetweet = Boolean(tweet.legacy?.retweeted_status_result?.result);
             
             tweets.push({
               id: tweet.rest_id,
@@ -333,8 +304,6 @@ async function fetchUserTweets(screenName: string, ct0: string, authToken: strin
               replyCount: legacy.reply_count,
               imageUrl,
               link: `https://x.com/${screenName}/status/${tweet.rest_id}`,
-              isReply,
-              isRetweet,
             });
           }
         }
@@ -344,7 +313,7 @@ async function fetchUserTweets(screenName: string, ct0: string, authToken: strin
 
   return {
     user,
-    tweets: tweets.slice(0, count),
+    tweets: tweets.slice(0, 10), // 返回最新10条
   };
 }
 

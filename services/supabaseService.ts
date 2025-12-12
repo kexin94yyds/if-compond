@@ -95,29 +95,6 @@ export async function getLicenseByKey(licenseKey: string): Promise<{ success: bo
   }
 }
 
- export async function getLatestLicenseKeyByEmail(email: string): Promise<{ success: boolean; licenseKey?: string; error?: string }> {
-   try {
-     const client = getSupabaseClient();
- 
-     const { data, error } = await client
-       .from('contentdash_licenses')
-       .select('license_key, created_at')
-       .eq('email', email)
-       .order('created_at', { ascending: false })
-       .limit(1)
-       .maybeSingle();
- 
-     if (error) {
-       return { success: false, error: error.message };
-     }
- 
-     return { success: true, licenseKey: data?.license_key };
-   } catch (error) {
-     console.error('Get license by email exception:', error);
-     return { success: false, error: '查询密钥失败' };
-   }
- }
-
 /**
  * 激活密钥
  */

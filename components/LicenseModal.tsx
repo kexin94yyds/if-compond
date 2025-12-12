@@ -3,7 +3,6 @@ import { X, Key, CreditCard, Loader2, CheckCircle, AlertCircle, Mail, Sparkles }
 import {
   isLicenseActivated,
   getStoredLicense,
-  getStoredEmail,
   formatLicenseKey,
   validateLicenseKeyFormat,
   activateLicense,
@@ -30,8 +29,6 @@ const LicenseModal: React.FC<LicenseModalProps> = ({ isOpen, onClose, onActivate
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  const [autoFilledKey, setAutoFilledKey] = useState<string | null>(null);
   
   // 支付相关状态
   const [orderNo, setOrderNo] = useState<string | null>(null);
@@ -58,31 +55,10 @@ const LicenseModal: React.FC<LicenseModalProps> = ({ isOpen, onClose, onActivate
       }
     };
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const trimmedEmail = email.trim();
-    const storedEmail = getStoredEmail();
-    const storedLicenseKey = getStoredLicense();
-
-    if (autoFilledKey && licenseKey === autoFilledKey) {
-      setLicenseKey('');
-    }
-    setAutoFilledKey(null);
-
-    if (!trimmedEmail || !storedEmail || !storedLicenseKey) return;
-
-    if (trimmedEmail.toLowerCase() === storedEmail.trim().toLowerCase()) {
-      setAutoFilledKey(storedLicenseKey);
-      setLicenseKey((current) => (current.trim() ? current : storedLicenseKey));
-    }
-  }, [email, isOpen]);
   
   const handleLicenseKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatLicenseKey(e.target.value);
     setLicenseKey(formatted);
-    setAutoFilledKey(null);
     setError(null);
   };
   
