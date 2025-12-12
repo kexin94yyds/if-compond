@@ -329,12 +329,15 @@ export const rssToFeedItem = (
     relativeDate = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
   }
   
+  const stableId = finalVideoId || `${index}-${Date.now()}`;
+
   return {
-    id: `yt-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `yt-${subscriptionId}-${stableId}`,
     subscriptionId,
     title: rssItem.title || 'Untitled Video',
     link: videoLink || '#',
     date: relativeDate,
+    publishedAt: rssItem.pubDate || undefined,
     // YouTube 缩略图 - 使用可靠的 hqdefault
     imageUrl: finalVideoId 
       ? `https://i.ytimg.com/vi/${finalVideoId}/hqdefault.jpg`

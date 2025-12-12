@@ -320,12 +320,16 @@ const rssToFeedItem = (
   // 优先使用传入的图片 URL，否则尝试从内容中提取
   const imageUrl = rssItem.imageUrl || extractImageFromContent(rssItem.content || rssItem.description);
   
+  const statusIdMatch = (rssItem.link || '').match(/\/status\/(\d+)/);
+  const stableId = statusIdMatch?.[1] || `${index}-${Date.now()}`;
+
   return {
-    id: `tw-${subscriptionId}-${index}-${Date.now()}`,
+    id: `tw-${subscriptionId}-${stableId}`,
     subscriptionId,
     title: text || `Tweet from @${username}`,
     link: rssItem.link || `https://twitter.com/${username}`,
     date: getRelativeTime(rssItem.pubDate),
+    publishedAt: rssItem.pubDate || undefined,
     imageUrl: imageUrl || undefined,
     platform: 'Twitter',
     summary: rssItem.description 

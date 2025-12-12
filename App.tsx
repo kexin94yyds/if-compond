@@ -67,6 +67,20 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [refreshProgress, setRefreshProgress] = useState<string>('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'youtube' | 'twitter'>('all');
+
+  // 排序函数：置顶优先，然后按发布时间排序
+  const sortFeedItems = useCallback((items: FeedItem[]) => {
+    return [...items].sort((a, b) => {
+      const subA = subscriptions.find(s => s.id === a.subscriptionId);
+      const subB = subscriptions.find(s => s.id === b.subscriptionId);
+      const pinnedA = subA?.pinned ? 1 : 0;
+      const pinnedB = subB?.pinned ? 1 : 0;
+      if (pinnedB !== pinnedA) return pinnedB - pinnedA;
+      const timeA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+      const timeB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+    });
+  }, [subscriptions]);
   
   // 授权状态
   const [isActivated, setIsActivated] = useState(() => isLicenseActivated());
@@ -192,10 +206,10 @@ const App: React.FC = () => {
               const sub = subscriptions.find(s => s.id === item.subscriptionId);
               return sub && sub.platform !== platformFilter;
             });
-            return [...validItems, ...otherPlatformItems];
+            return sortFeedItems([...validItems, ...otherPlatformItems]);
           });
         } else {
-          setFeedItems(validItems);
+          setFeedItems(sortFeedItems(validItems));
         }
         setLastUpdated(new Date());
         
@@ -218,7 +232,7 @@ const App: React.FC = () => {
       setIsRefreshing(false);
       setRefreshProgress('');
     }
-  }, [subscriptions, platformFilter, isActivated, usageCount]);
+  }, [subscriptions, platformFilter, isActivated, usageCount, sortFeedItems]);
 
   // Get subscription name helper
   const getSubName = (subId: string) => {

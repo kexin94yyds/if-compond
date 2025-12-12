@@ -1,4 +1,14 @@
 import { Handler } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://pgnxluovitiwgvzutjuh.supabase.co';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY environment variable');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 /**
  * 密钥反激活 API
@@ -35,10 +45,39 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // TODO: 生产环境应该：
-    // 1. 查询数据库验证密钥
-    // 2. 更新激活状态
-    // 3. 记录反激活日志
+    const formattedKey = licenseKey.toUpperCase();
+
+    // 查询密钥
+    const { data: license, error: queryError } = await supabase
+      .from('contentdash_licenses')
+      .select('*')
+      .eq('license_key', formattedKey)
+      .single();
+
+    if (queryError) {
+      if (queryError.code === 'PGRST116') {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ success: false, error: '密钥不存在' }),
+        };
+      }
+      throw queryError;
+    }
+
+    // 更新为未激活状态
+    const { error: updateError } = await supabase
+      .from('contentdash_licenses')
+      .update({
+        status: 'inactive',
+        device_id: null,
+        current_activations: 0,
+      })
+      .eq('license_key', formattedKey);
+
+    if (updateError) {
+      throw updateError;
+    }
 
     return {
       statusCode: 200,
