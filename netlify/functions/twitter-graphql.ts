@@ -101,14 +101,17 @@ const handler: Handler = async (event) => {
         try {
           const store = getStore('twitter-cache');
           const cacheKey = `tweets-${username}`;
-          const cached = await store.get(cacheKey, { type: 'json' });
-          if (cached) {
-            console.log(`📦 Cache hit for @${username}`);
+          const cached = await store.get(cacheKey, { type: 'json' }) as any;
+          const cachedCount = cached?.tweets?.length ?? 0;
+          if (cached && cachedCount >= count) {
+            console.log(`📦 Cache hit for @${username} (${cachedCount} tweets, need ${count})`);
             return {
               statusCode: 200,
               headers,
               body: JSON.stringify({ status: 'ok', tweets: cached, cached: true }),
             };
+          } else if (cached) {
+            console.log(`📦 Cache insufficient for @${username} (${cachedCount} < ${count}), refetching`);
           }
         } catch (e) {
           console.log('Cache read error:', e);
