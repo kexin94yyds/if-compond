@@ -62,6 +62,8 @@ const handler: Handler = async (event) => {
 
   const username = event.queryStringParameters?.username;
   const action = event.queryStringParameters?.action || 'user'; // user, tweets
+  const countParam = event.queryStringParameters?.count;
+  const count = countParam ? Math.max(1, Math.min(100, parseInt(countParam, 10) || 20)) : 20;
 
   if (!username) {
     return {
@@ -114,7 +116,7 @@ const handler: Handler = async (event) => {
       }
       
       // 获取用户推文
-      const tweets = await fetchUserTweets(username, ct0, authToken);
+      const tweets = await fetchUserTweets(username, ct0, authToken, count);
       
       // 存储到缓存（仅生产环境）
       if (process.env.NETLIFY) {
@@ -206,14 +208,14 @@ async function fetchUserByScreenName(screenName: string, ct0: string, authToken:
   };
 }
 
-async function fetchUserTweets(screenName: string, ct0: string, authToken: string) {
+async function fetchUserTweets(screenName: string, ct0: string, authToken: string, count: number = 20) {
   // 先获取用户 ID
   const user = await fetchUserByScreenName(screenName, ct0, authToken);
   const userId = user.id;
 
   const variables = JSON.stringify({
     userId,
-    count: 20,
+    count,
     includePromotedContent: false,
     withQuickPromoteEligibilityTweetFields: false,
     withVoice: true,
@@ -313,7 +315,7 @@ async function fetchUserTweets(screenName: string, ct0: string, authToken: strin
 
   return {
     user,
-    tweets: tweets.slice(0, 10), // 返回最新10条
+    tweets: tweets.slice(0, count),
   };
 }
 
