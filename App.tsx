@@ -11,7 +11,7 @@ import { Sparkles, LayoutGrid, AlertTriangle, RefreshCw } from 'lucide-react';
 
 // 版本号 - 更新此值会清除旧数据并使用新的初始订阅
 const APP_VERSION = '2.1.0';
-const MAX_FREE_USES = 3; // 免费试用次数
+const MAX_FREE_USES = 1; // 免费试用次数
 
 const App: React.FC = () => {
   // State for subscriptions, initialized from localStorage
