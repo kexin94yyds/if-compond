@@ -3,6 +3,7 @@ import { X, Key, CreditCard, Loader2, CheckCircle, AlertCircle, Mail, Sparkles }
 import {
   isLicenseActivated,
   getStoredLicense,
+  getStoredEmail,
   formatLicenseKey,
   validateLicenseKeyFormat,
   activateLicense,
@@ -44,6 +45,11 @@ const LicenseModal: React.FC<LicenseModalProps> = ({ isOpen, onClose, onActivate
     if (isOpen) {
       setIsActivated(isLicenseActivated());
       setStoredKey(getStoredLicense());
+      // 预填充已存储的邮箱
+      const savedEmail = getStoredEmail();
+      if (savedEmail) {
+        setEmail(savedEmail);
+      }
       setError(null);
       setSuccess(null);
     }
