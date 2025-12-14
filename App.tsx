@@ -11,7 +11,7 @@ import { Sparkles, LayoutGrid, AlertTriangle, RefreshCw } from 'lucide-react';
 
 // 版本号 - 更新此值会清除旧数据并使用新的初始订阅
 const APP_VERSION = '2.1.0';
-const MAX_FREE_USES = 1; // 免费试用次数
+const MAX_FREE_USES = 0; // 免费试用次数（0=必须购买才能使用）
 
 const App: React.FC = () => {
   // State for subscriptions, initialized from localStorage
@@ -302,7 +302,25 @@ const App: React.FC = () => {
             </div>
           )}
           
-          {filteredFeedItems.length > 0 ? (
+          {/* 未激活用户显示购买提示 */}
+          {!isActivated ? (
+            <div className="flex flex-col items-center justify-center h-full text-center py-20 px-4">
+              <div className="w-20 h-20 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl flex items-center justify-center mb-6 border border-purple-500/30">
+                <Sparkles className="text-purple-400" size={40} />
+              </div>
+              <h3 className="text-2xl font-bold text-zinc-100 mb-3">解锁完整内容</h3>
+              <p className="text-zinc-400 max-w-md mx-auto mb-8">
+                购买授权后即可查看所有订阅源的最新内容推送，一次购买，永久使用。
+              </p>
+              <button 
+                onClick={() => setIsLicenseModalOpen(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-8 py-4 rounded-full font-semibold transition-all active:scale-95 shadow-lg shadow-purple-500/25"
+              >
+                <Sparkles size={20} />
+                <span>立即激活</span>
+              </button>
+            </div>
+          ) : filteredFeedItems.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredFeedItems.map((item) => (
                 <FeedCard 
@@ -312,7 +330,7 @@ const App: React.FC = () => {
                 />
               ))}
             </div>
-          ) : !isRefreshing && (
+          ) : !isRefreshing && isActivated && (
             <div className="flex flex-col items-center justify-center h-full text-center py-20 px-4">
               <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mb-6 border border-zinc-800">
                 <LayoutGrid className="text-zinc-600" size={32} />
